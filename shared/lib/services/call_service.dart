@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
 
 import '../models/call_request_model.dart';
@@ -151,5 +152,169 @@ class MockCallService implements CallService {
       await c.close();
     }
     _controllers.clear();
+  }
+}
+
+class FirebaseCallService implements CallService {
+  FirebaseCallService({FirebaseFirestore? firestore}) : _firestore = firestore;
+
+  static const String _requestsBox = 'call_requests_box';
+  static const String _roomsBox = 'rooms_box';
+
+  final FirebaseFirestore? _firestore;
+
+  FirebaseFirestore get _db => _firestore ?? FirebaseFirestore.instance;
+
+  @override
+  Future<void> createCallRequest(CallRequestModel request) async {
+    AppLogger.write(LogTag.schedule, 'createCallRequest(firebase): ${request.id}');
+    await _cacheRequest(request);
+    try {
+      await _db
+          .collection('callRequests')
+          .doc(request.id)
+          .set(request.toJson());
+    } catch (e) {
+      AppLogger.write(LogTag.schedule, 'createCallRequest(firebase) offline: $e');
+    }
+  }
+
+  @override
+  Stream<List<CallRequestModel>> watchRequests(String trainerId) async* {
+    AppLogger.write(
+      LogTag.schedule,
+      'watchRequests(firebase): trainerId=$trainerId',
+    );
+    yield _cachedRequests(trainerId);
+
+    try {
+      final query = _db
+          .collection('callRequests')
+          .where('trainerId', isEqualTo: trainerId);
+
+      await for (final snapshot in query.snapshots()) {
+        final requests = snapshot.docs
+            .map((doc) => CallRequestModel.fromJson(doc.data()))
+            .toList()
+          ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+        await _cacheRequests(requests);
+        yield requests;
+      }
+    } catch (e) {
+      AppLogger.write(
+        LogTag.schedule,
+        'watchRequests(firebase) error; using cache: $e',
+      );
+      yield _cachedRequests(trainerId);
+    }
+  }
+
+  @override
+  Future<void> approveRequest(String requestId, RoomMetaModel roomMeta) async {
+    AppLogger.write(
+      LogTag.schedule,
+      'approveRequest(firebase): requestId=$requestId room=${roomMeta.hmsRoomId}',
+    );
+    final existing = _requestById(requestId);
+    if (existing != null) {
+      await _cacheRequest(existing.copyWith(status: CallStatus.approved));
+    }
+    await _cacheRoom(roomMeta);
+
+    try {
+      await _db.collection('callRequests').doc(requestId).update({
+        'status': CallStatus.approved.name,
+      });
+      await _db.collection('rooms').doc(roomMeta.id).set(roomMeta.toJson());
+    } catch (e) {
+      AppLogger.write(LogTag.schedule, 'approveRequest(firebase) offline: $e');
+    }
+  }
+
+  @override
+  Future<void> declineRequest(String requestId, String reason) async {
+    AppLogger.write(
+      LogTag.schedule,
+      'declineRequest(firebase): requestId=$requestId',
+    );
+    final existing = _requestById(requestId);
+    if (existing != null) {
+      await _cacheRequest(existing.copyWith(status: CallStatus.declined));
+    }
+
+    try {
+      await _db.collection('callRequests').doc(requestId).update({
+        'status': CallStatus.declined.name,
+        'declineReason': reason,
+      });
+    } catch (e) {
+      AppLogger.write(LogTag.schedule, 'declineRequest(firebase) offline: $e');
+    }
+  }
+
+  @override
+  Future<bool> isSlotTaken(String trainerId, DateTime slot) async {
+    AppLogger.write(
+      LogTag.schedule,
+      'isSlotTaken(firebase): trainerId=$trainerId slot=$slot',
+    );
+    const window = Duration(minutes: 30);
+    final cachedTaken = _cachedRequests(trainerId).any((request) =>
+        request.status == CallStatus.approved &&
+        request.scheduledFor.difference(slot).abs() < window);
+    if (cachedTaken) return true;
+
+    try {
+      final snapshot = await _db
+          .collection('callRequests')
+          .where('trainerId', isEqualTo: trainerId)
+          .where('status', isEqualTo: CallStatus.approved.name)
+          .get();
+      return snapshot.docs
+          .map((doc) => CallRequestModel.fromJson(doc.data()))
+          .any((request) => request.scheduledFor.difference(slot).abs() < window);
+    } catch (e) {
+      AppLogger.write(LogTag.schedule, 'isSlotTaken(firebase) offline: $e');
+      return false;
+    }
+  }
+
+  CallRequestModel? _requestById(String requestId) {
+    try {
+      return Hive.box<CallRequestModel>(_requestsBox).get(requestId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<CallRequestModel> _cachedRequests(String trainerId) {
+    try {
+      final requests = Hive.box<CallRequestModel>(_requestsBox)
+          .values
+          .where((request) => request.trainerId == trainerId)
+          .toList()
+        ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+      return requests;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _cacheRequests(List<CallRequestModel> requests) async {
+    for (final request in requests) {
+      await _cacheRequest(request);
+    }
+  }
+
+  Future<void> _cacheRequest(CallRequestModel request) async {
+    try {
+      await Hive.box<CallRequestModel>(_requestsBox).put(request.id, request);
+    } catch (_) {}
+  }
+
+  Future<void> _cacheRoom(RoomMetaModel roomMeta) async {
+    try {
+      await Hive.box<RoomMetaModel>(_roomsBox).put(roomMeta.id, roomMeta);
+    } catch (_) {}
   }
 }

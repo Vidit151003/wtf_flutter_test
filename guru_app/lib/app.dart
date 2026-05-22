@@ -28,9 +28,9 @@ class GuruApp extends StatefulWidget {
 
 class _GuruAppState extends State<GuruApp> {
   late final MockAuthService _authService;
-  late final MockChatService _chatService;
-  late final MockCallService _callService;
-  late final MockLogService _logService;
+  late final FirebaseChatService _chatService;
+  late final FirebaseCallService _callService;
+  late final FirebaseLogService _logService;
 
   late final AuthProvider _authProvider;
   late final ChatProvider _chatProvider;
@@ -44,9 +44,9 @@ class _GuruAppState extends State<GuruApp> {
   void initState() {
     super.initState();
     _authService = MockAuthService();
-    _chatService = MockChatService();
-    _callService = MockCallService();
-    _logService = MockLogService();
+    _chatService = FirebaseChatService();
+    _callService = FirebaseCallService();
+    _logService = FirebaseLogService();
 
     _authProvider = AuthProvider(_authService);
     _chatProvider = ChatProvider(_chatService, _authService);
@@ -120,9 +120,6 @@ class _GuruAppState extends State<GuruApp> {
   @override
   void dispose() {
     _authService.dispose();
-    _chatService.dispose();
-    _callService.dispose();
-    _logService.dispose();
     super.dispose();
   }
 

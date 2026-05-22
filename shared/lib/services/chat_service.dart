@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
 
 import '../models/message_model.dart';
@@ -150,5 +151,163 @@ class MockChatService implements ChatService {
     }
     _messageControllers.clear();
     _typingControllers.clear();
+  }
+}
+
+class FirebaseChatService implements ChatService {
+  FirebaseChatService({FirebaseFirestore? firestore}) : _firestore = firestore;
+
+  static const String _boxName = 'messages_box';
+
+  final FirebaseFirestore? _firestore;
+
+  FirebaseFirestore get _db => _firestore ?? FirebaseFirestore.instance;
+
+  @override
+  Stream<List<MessageModel>> watchMessages(String chatId) async* {
+    AppLogger.write(LogTag.chat, 'watchMessages(firebase): chatId=$chatId');
+    yield _cachedMessages(chatId);
+
+    try {
+      final query = _db
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .orderBy('createdAt');
+
+      await for (final snapshot in query.snapshots()) {
+        final messages = snapshot.docs
+            .map((doc) => MessageModel.fromJson(doc.data()))
+            .toList();
+        await _cacheMessages(messages);
+        AppLogger.write(
+          LogTag.chat,
+          'watchMessages(firebase): ${messages.length} messages',
+        );
+        yield messages;
+      }
+    } catch (e) {
+      AppLogger.write(
+        LogTag.chat,
+        'watchMessages(firebase) error; using cache: $e',
+      );
+      yield _cachedMessages(chatId);
+    }
+  }
+
+  @override
+  Future<void> sendMessage(MessageModel message) async {
+    AppLogger.write(
+      LogTag.chat,
+      'sendMessage(firebase): id=${message.id} chatId=${message.chatId}',
+    );
+    await _cacheMessage(message);
+    try {
+      await _db
+          .collection('chats')
+          .doc(message.chatId)
+          .collection('messages')
+          .doc(message.id)
+          .set(message.toJson());
+      AppLogger.write(LogTag.chat, 'sendMessage(firebase) synced');
+    } catch (e) {
+      AppLogger.write(LogTag.chat, 'sendMessage(firebase) offline: $e');
+    }
+  }
+
+  @override
+  Future<void> markAsRead(String chatId, String userId) async {
+    AppLogger.write(
+      LogTag.chat,
+      'markAsRead(firebase): chatId=$chatId userId=$userId',
+    );
+    final messages = _cachedMessages(chatId)
+        .where((m) => m.receiverId == userId && m.status != MessageStatus.read)
+        .toList();
+
+    for (final message in messages) {
+      await _cacheMessage(message.copyWith(status: MessageStatus.read));
+    }
+
+    try {
+      final snapshot = await _db
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .where('receiverId', isEqualTo: userId)
+          .get();
+      final batch = _db.batch();
+      for (final doc in snapshot.docs) {
+        batch.update(doc.reference, {'status': MessageStatus.read.name});
+      }
+      await batch.commit();
+    } catch (e) {
+      AppLogger.write(LogTag.chat, 'markAsRead(firebase) offline: $e');
+    }
+  }
+
+  @override
+  Stream<bool> watchTyping(String chatId, String senderId) async* {
+    AppLogger.write(
+      LogTag.chat,
+      'watchTyping(firebase): chatId=$chatId senderId=$senderId',
+    );
+    try {
+      await for (final snapshot in _db
+          .collection('chats')
+          .doc(chatId)
+          .collection('typing')
+          .doc(senderId)
+          .snapshots()) {
+        yield (snapshot.data()?['isTyping'] as bool?) ?? false;
+      }
+    } catch (e) {
+      AppLogger.write(LogTag.chat, 'watchTyping(firebase) offline: $e');
+      yield false;
+    }
+  }
+
+  @override
+  Future<void> setTyping(String chatId, String userId, bool isTyping) async {
+    AppLogger.write(
+      LogTag.chat,
+      'setTyping(firebase): chatId=$chatId userId=$userId val=$isTyping',
+    );
+    try {
+      await _db
+          .collection('chats')
+          .doc(chatId)
+          .collection('typing')
+          .doc(userId)
+          .set({
+        'isTyping': isTyping,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      AppLogger.write(LogTag.chat, 'setTyping(firebase) offline: $e');
+    }
+  }
+
+  List<MessageModel> _cachedMessages(String chatId) {
+    try {
+      final box = Hive.box<MessageModel>(_boxName);
+      return box.values.where((m) => m.chatId == chatId).toList()
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _cacheMessages(List<MessageModel> messages) async {
+    for (final message in messages) {
+      await _cacheMessage(message);
+    }
+  }
+
+  Future<void> _cacheMessage(MessageModel message) async {
+    try {
+      final box = Hive.box<MessageModel>(_boxName);
+      await box.put(message.id, message);
+    } catch (_) {}
   }
 }

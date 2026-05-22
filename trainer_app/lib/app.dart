@@ -22,9 +22,9 @@ import 'widgets/dev_panel_overlay.dart';
 
 // ─── Services (singleton instances) ──────────────────────────────────────────
 final _authService = MockAuthService();
-final _chatService = MockChatService();
-final _callService = MockCallService();
-final _logService = MockLogService();
+final _chatService = FirebaseChatService();
+final _callService = FirebaseCallService();
+final _logService = FirebaseLogService();
 
 // ─── GoRouter ────────────────────────────────────────────────────────────────
 final _router = GoRouter(

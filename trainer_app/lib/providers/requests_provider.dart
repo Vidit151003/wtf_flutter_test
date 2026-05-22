@@ -81,7 +81,7 @@ class RequestsProvider extends ChangeNotifier {
         chatId: chatId,
         senderId: _trainerId,
         receiverId: request.memberId,
-        text: '✅ Call approved for $formattedDate at $formattedTime.',
+        text: 'Call approved for $formattedDate $formattedTime.',
         createdAt: DateTime.now(),
         status: MessageStatus.sent,
       );
@@ -113,7 +113,7 @@ class RequestsProvider extends ChangeNotifier {
         chatId: chatId,
         senderId: _trainerId,
         receiverId: request.memberId,
-        text: '❌ Call request declined. Reason: $reason.',
+        text: 'Call request declined. Reason: $reason.',
         createdAt: DateTime.now(),
         status: MessageStatus.sent,
       );

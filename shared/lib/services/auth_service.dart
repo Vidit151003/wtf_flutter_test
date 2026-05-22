@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
@@ -91,6 +92,7 @@ class MockAuthService implements AuthService {
       if ((seed['email'] as String).toLowerCase() == normalised) {
         final user = UserModel.fromJson(Map<String, dynamic>.from(seed));
         await _persist(user);
+        await _syncUser(user);
         AppLogger.write(LogTag.auth, 'login success (seed): ${user.id}');
         return user;
       }
@@ -104,6 +106,7 @@ class MockAuthService implements AuthService {
         if (value is UserModel &&
             value.email.toLowerCase() == normalised) {
           await _persist(value);
+          await _syncUser(value);
           AppLogger.write(
               LogTag.auth, 'login success (hive): ${value.id}');
           return value;
@@ -130,6 +133,7 @@ class MockAuthService implements AuthService {
       assignedTrainerId: assignedTrainerId,
     );
     await _persist(user);
+    await _syncUser(user);
     AppLogger.write(LogTag.auth, 'profile created: ${user.id}');
     return user;
   }
@@ -158,6 +162,18 @@ class MockAuthService implements AuthService {
       await box.put(_userKey, user);
     } catch (_) {}
     _controller.add(_currentUser);
+  }
+
+  Future<void> _syncUser(UserModel user) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.id)
+          .set(user.toJson());
+      AppLogger.write(LogTag.auth, 'user synced to Firestore: ${user.id}');
+    } catch (e) {
+      AppLogger.write(LogTag.auth, 'user sync skipped/offline: $e');
+    }
   }
 
   /// Dispose the stream controller when no longer needed.

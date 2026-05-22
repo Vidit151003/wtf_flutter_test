@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
 
 import '../models/session_log_model.dart';
@@ -128,5 +129,117 @@ class MockLogService implements LogService {
       await c.close();
     }
     _controllers.clear();
+  }
+}
+
+class FirebaseLogService implements LogService {
+  FirebaseLogService({FirebaseFirestore? firestore}) : _firestore = firestore;
+
+  static const String _boxName = 'session_logs_box';
+
+  final FirebaseFirestore? _firestore;
+
+  FirebaseFirestore get _db => _firestore ?? FirebaseFirestore.instance;
+
+  @override
+  Future<void> saveLog(SessionLogModel log) async {
+    AppLogger.write(LogTag.rtc, 'saveLog(firebase): id=${log.id}');
+    await _cacheLog(log);
+    try {
+      await _db.collection('sessionLogs').doc(log.id).set(log.toJson());
+    } catch (e) {
+      AppLogger.write(LogTag.rtc, 'saveLog(firebase) offline: $e');
+    }
+  }
+
+  @override
+  Stream<List<SessionLogModel>> watchLogs(String userId, UserRole role) async* {
+    AppLogger.write(
+      LogTag.rtc,
+      'watchLogs(firebase): userId=$userId role=${role.name}',
+    );
+    yield _cachedLogs(userId, role);
+
+    try {
+      final field = role == UserRole.trainer ? 'trainerId' : 'memberId';
+      final query = _db
+          .collection('sessionLogs')
+          .where(field, isEqualTo: userId);
+
+      await for (final snapshot in query.snapshots()) {
+        final logs = snapshot.docs
+            .map((doc) => SessionLogModel.fromJson(doc.data()))
+            .toList()
+          ..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+        await _cacheLogs(logs);
+        yield logs;
+      }
+    } catch (e) {
+      AppLogger.write(LogTag.rtc, 'watchLogs(firebase) error; using cache: $e');
+      yield _cachedLogs(userId, role);
+    }
+  }
+
+  @override
+  Future<void> updateLog(
+    String logId, {
+    int? rating,
+    String? memberNotes,
+    String? trainerNotes,
+  }) async {
+    AppLogger.write(LogTag.rtc, 'updateLog(firebase): logId=$logId');
+    final existing = _logById(logId);
+    final updates = <String, Object?>{};
+    if (rating != null) updates['rating'] = rating;
+    if (memberNotes != null) updates['memberNotes'] = memberNotes;
+    if (trainerNotes != null) updates['trainerNotes'] = trainerNotes;
+
+    if (existing != null) {
+      await _cacheLog(existing.copyWith(
+        rating: rating,
+        memberNotes: memberNotes,
+        trainerNotes: trainerNotes,
+      ));
+    }
+
+    try {
+      await _db.collection('sessionLogs').doc(logId).update(updates);
+    } catch (e) {
+      AppLogger.write(LogTag.rtc, 'updateLog(firebase) offline: $e');
+    }
+  }
+
+  SessionLogModel? _logById(String logId) {
+    try {
+      return Hive.box<SessionLogModel>(_boxName).get(logId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<SessionLogModel> _cachedLogs(String userId, UserRole role) {
+    try {
+      final logs = Hive.box<SessionLogModel>(_boxName).values.where((log) {
+        return role == UserRole.trainer
+            ? log.trainerId == userId
+            : log.memberId == userId;
+      }).toList()
+        ..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+      return logs;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _cacheLogs(List<SessionLogModel> logs) async {
+    for (final log in logs) {
+      await _cacheLog(log);
+    }
+  }
+
+  Future<void> _cacheLog(SessionLogModel log) async {
+    try {
+      await Hive.box<SessionLogModel>(_boxName).put(log.id, log);
+    } catch (_) {}
   }
 }

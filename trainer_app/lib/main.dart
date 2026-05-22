@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared/shared.dart';
@@ -6,6 +7,13 @@ import 'app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Firebase.initializeApp();
+    AppLogger.write(LogTag.auth, 'Firebase initialized for Trainer App');
+  } catch (e) {
+    AppLogger.write(LogTag.auth, 'Firebase init failed; working offline: $e');
+  }
 
   // ── Hive init ────────────────────────────────────────────────────────────────
   await Hive.initFlutter();

@@ -1,4 +1,4 @@
-package com.example.guru_app
+package com.wtf.guruapp
 
 import io.flutter.embedding.android.FlutterActivity
 
