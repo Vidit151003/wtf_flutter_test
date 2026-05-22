@@ -140,6 +140,12 @@
       "languageVersion": "2.12"
     },
     {
+      "name": "hmssdk_flutter",
+      "rootUri": "file:///C:/Users/prage/AppData/Local/Pub/Cache/hosted/pub.dev/hmssdk_flutter-1.11.1",
+      "packageUri": "lib/",
+      "languageVersion": "2.16"
+    },
+    {
       "name": "intl",
       "rootUri": "file:///C:/Users/prage/AppData/Local/Pub/Cache/hosted/pub.dev/intl-0.18.1",
       "packageUri": "lib/",

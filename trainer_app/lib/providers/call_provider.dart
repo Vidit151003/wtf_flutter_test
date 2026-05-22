@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared/shared.dart';
 import 'package:uuid/uuid.dart';
+import '../secrets.dart';
 
 enum CallState { idle, preJoin, inCall, postCall }
 
@@ -16,7 +17,17 @@ class TrainerCallProvider extends ChangeNotifier {
   DateTime? _callStartedAt;
   String? _error;
 
-  TrainerCallProvider(this._logService);
+  late final HmsCallManager _hmsManager;
+
+  TrainerCallProvider(this._logService) {
+    _hmsManager = HmsCallManager(
+      onStateChange: notifyListeners,
+      onErrorCallback: (e) {
+        _error = e;
+        notifyListeners();
+      },
+    );
+  }
 
   CallState get callState => _callState;
   RoomMetaModel? get roomMeta => _roomMeta;
@@ -25,6 +36,7 @@ class TrainerCallProvider extends ChangeNotifier {
   DateTime? get callStartedAt => _callStartedAt;
   String? get error => _error;
   bool get isInCall => _callState == CallState.inCall;
+  HmsCallManager get hmsManager => _hmsManager;
 
   /// Pre-join: set room metadata and transition to preJoin state.
   void prepareCall(RoomMetaModel meta) {
@@ -34,18 +46,19 @@ class TrainerCallProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Join the call (stub — 100ms not integrated).
+  /// Join the call via 100ms
   Future<void> joinCall() async {
-    AppLogger.write(
-        LogTag.rtc, 'RTC: joinCall (STUB, requires 100ms credentials)');
+    AppLogger.write(LogTag.rtc, 'RTC: joinCall 100ms');
     _callState = CallState.inCall;
     _callStartedAt = DateTime.now();
     notifyListeners();
+    await _hmsManager.joinWithRoomCode(Secrets.hmsRoomCodeTrainer, 'Trainer');
   }
 
   /// Toggle microphone mute state.
   void toggleMute() {
     _isMuted = !_isMuted;
+    _hmsManager.toggleMic(_isMuted);
     AppLogger.write(LogTag.rtc, 'Trainer toggleMute: muted=$_isMuted');
     notifyListeners();
   }
@@ -53,6 +66,7 @@ class TrainerCallProvider extends ChangeNotifier {
   /// Toggle camera off state.
   void toggleCamera() {
     _isCameraOff = !_isCameraOff;
+    _hmsManager.toggleCamera(_isCameraOff);
     AppLogger.write(LogTag.rtc, 'Trainer toggleCamera: off=$_isCameraOff');
     notifyListeners();
   }
@@ -63,6 +77,7 @@ class TrainerCallProvider extends ChangeNotifier {
     required String trainerId,
   }) async {
     AppLogger.write(LogTag.rtc, 'Trainer endCall');
+    await _hmsManager.leaveCall();
     _callState = CallState.postCall;
     final now = DateTime.now();
     final started = _callStartedAt ?? now.subtract(const Duration(minutes: 1));
@@ -87,10 +102,11 @@ class TrainerCallProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// End the room for all participants (stub — requires 100ms server credentials).
+  /// End the room for all participants via 100ms
   Future<void> endRoomForAll() async {
-    AppLogger.write(
-        LogTag.rtc, 'RTC: endRoomForAll (STUB, requires 100ms credentials)');
+    AppLogger.write(LogTag.rtc, 'RTC: endRoomForAll');
+    await _hmsManager.endRoom();
+    await _hmsManager.leaveCall();
     _callState = CallState.postCall;
     notifyListeners();
   }

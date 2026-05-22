@@ -18,6 +18,7 @@ export 'services/log_service.dart';
 export 'utils/app_logger.dart';
 export 'utils/app_theme.dart';
 export 'utils/extensions.dart';
+export 'utils/hms_call_manager.dart';
 export 'utils/validators.dart';
 
 // ─── Widgets ──────────────────────────────────────────────────────────────────

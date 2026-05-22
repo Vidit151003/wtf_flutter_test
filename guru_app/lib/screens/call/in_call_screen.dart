@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:hmssdk_flutter/hmssdk_flutter.dart';
 import '../../providers/call_provider.dart';
 import '../../providers/auth_provider.dart';
 import 'post_call_sheet.dart';
@@ -36,27 +37,47 @@ class _InCallScreenState extends State<InCallScreen> {
             Positioned.fill(
               child: Container(
                 color: Colors.grey.shade900,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Colors.blueGrey,
-                        child: Text(
-                          trainerName[0],
-                          style: const TextStyle(
-                              fontSize: 48, color: Colors.white),
+                child: Stack(
+                  children: [
+                    if (callProvider.hmsManager.remotePeers.isNotEmpty)
+                      ...callProvider.hmsManager.remotePeers.map((peer) {
+                        final track = peer.videoTrack;
+                        if (track != null && !track.isMute) {
+                          return HMSVideoView(track: track, matchParent: true);
+                        }
+                        return Center(
+                          child: CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Colors.blueGrey,
+                            child: Text(
+                              peer.name.isNotEmpty ? peer.name[0].toUpperCase() : 'T',
+                              style: const TextStyle(fontSize: 48, color: Colors.white),
+                            ),
+                          ),
+                        );
+                      })
+                    else
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(
+                              radius: 60,
+                              backgroundColor: Colors.blueGrey,
+                              child: Text(
+                                trainerName[0],
+                                style: const TextStyle(fontSize: 48, color: Colors.white),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              trainerName,
+                              style: const TextStyle(color: Colors.white, fontSize: 24),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        trainerName,
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 24),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -73,19 +94,25 @@ class _InCallScreenState extends State<InCallScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.grey.shade600, width: 2),
                 ),
+                clipBehavior: Clip.antiAlias,
                 child: Stack(
                   children: [
-                    Center(
-                      child: CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Colors.blue.shade800,
-                        child: Text(
-                          myInitials,
-                          style: const TextStyle(
-                              fontSize: 24, color: Colors.white),
+                    if (callProvider.isVideoOff || callProvider.hmsManager.localPeer?.videoTrack == null)
+                      Center(
+                        child: CircleAvatar(
+                          radius: 30,
+                          backgroundColor: Colors.blue.shade800,
+                          child: Text(
+                            myInitials,
+                            style: const TextStyle(fontSize: 24, color: Colors.white),
+                          ),
                         ),
+                      )
+                    else
+                      HMSVideoView(
+                        track: callProvider.hmsManager.localPeer!.videoTrack!,
+                        matchParent: true,
                       ),
-                    ),
                     const Positioned(
                       bottom: 8,
                       left: 8,

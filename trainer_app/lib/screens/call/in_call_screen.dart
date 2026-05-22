@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared/shared.dart';
+import 'package:hmssdk_flutter/hmssdk_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/call_provider.dart';
 import 'post_call_sheet.dart';
@@ -17,18 +18,15 @@ class _InCallScreenState extends State<InCallScreen> {
   bool _isCameraOn = true;
 
   void _toggleMic() {
-    setState(() {
-      _isMicOn = !_isMicOn;
-    });
+    Provider.of<TrainerCallProvider>(context, listen: false).toggleMute();
   }
 
   void _toggleCamera() {
-    setState(() {
-      _isCameraOn = !_isCameraOn;
-    });
+    Provider.of<TrainerCallProvider>(context, listen: false).toggleCamera();
   }
 
   void _flipCamera() {
+    Provider.of<TrainerCallProvider>(context, listen: false).hmsManager.switchCamera();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Camera flipped')),
     );
@@ -81,22 +79,44 @@ class _InCallScreenState extends State<InCallScreen> {
         child: Stack(
           children: [
             Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Stack(
                 children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.grey[800],
-                    child: Text(
-                      memberInitials,
-                      style: const TextStyle(fontSize: 48, color: Colors.white),
+                  if (callProvider.hmsManager.remotePeers.isNotEmpty)
+                    ...callProvider.hmsManager.remotePeers.map((peer) {
+                      final track = peer.videoTrack;
+                      if (track != null && !track.isMute) {
+                        return HMSVideoView(track: track, matchParent: true);
+                      }
+                      return Center(
+                        child: CircleAvatar(
+                          radius: 60,
+                          backgroundColor: Colors.grey[800],
+                          child: Text(
+                            peer.name.isNotEmpty ? peer.name[0].toUpperCase() : 'M',
+                            style: const TextStyle(fontSize: 48, color: Colors.white),
+                          ),
+                        ),
+                      );
+                    })
+                  else
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundColor: Colors.grey[800],
+                          child: Text(
+                            memberInitials,
+                            style: const TextStyle(fontSize: 48, color: Colors.white),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          memberName,
+                          style: const TextStyle(color: Colors.white, fontSize: 24),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    memberName,
-                    style: const TextStyle(color: Colors.white, fontSize: 24),
-                  ),
                 ],
               ),
             ),
@@ -112,10 +132,11 @@ class _InCallScreenState extends State<InCallScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.grey[700]!),
                 ),
+                clipBehavior: Clip.antiAlias,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    if (!_isCameraOn)
+                    if (callProvider.isCameraOff || callProvider.hmsManager.localPeer?.videoTrack == null)
                       CircleAvatar(
                         radius: 30,
                         backgroundColor: Colors.grey[800],
@@ -125,14 +146,9 @@ class _InCallScreenState extends State<InCallScreen> {
                         ),
                       )
                     else
-                      const Text(
-                        'Camera preview',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontStyle: FontStyle.italic,
-                          fontSize: 12,
-                        ),
+                      HMSVideoView(
+                        track: callProvider.hmsManager.localPeer!.videoTrack!,
+                        matchParent: true,
                       ),
                     Positioned(
                       bottom: 8,
@@ -199,14 +215,14 @@ class _InCallScreenState extends State<InCallScreen> {
                     children: [
                       IconButton(
                         onPressed: _toggleMic,
-                        icon: Icon(_isMicOn ? Icons.mic : Icons.mic_off),
-                        color: _isMicOn ? Colors.white : Colors.red,
+                        icon: Icon(callProvider.isMuted ? Icons.mic_off : Icons.mic),
+                        color: callProvider.isMuted ? Colors.red : Colors.white,
                         iconSize: 28,
                       ),
                       IconButton(
                         onPressed: _toggleCamera,
-                        icon: Icon(_isCameraOn ? Icons.videocam : Icons.videocam_off),
-                        color: _isCameraOn ? Colors.white : Colors.red,
+                        icon: Icon(callProvider.isCameraOff ? Icons.videocam_off : Icons.videocam),
+                        color: callProvider.isCameraOff ? Colors.red : Colors.white,
                         iconSize: 28,
                       ),
                       IconButton(

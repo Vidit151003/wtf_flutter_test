@@ -21,6 +21,7 @@ dependencies:
   firebase_core: ^2.24.0
   uuid: ^4.4.0
   http: ^1.2.1
+  hmssdk_flutter: ^1.11.1
 
 dev_dependencies:
   flutter_lints: ^4.0.0

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared/shared.dart';
-
-// TODO: Integrate hmssdk_flutter when 100ms credentials are available
-// This provider is fully wired but uses stub call state
+import '../secrets.dart';
 
 class CallProvider extends ChangeNotifier {
   final LogService _logService;
@@ -22,22 +20,29 @@ class CallProvider extends ChangeNotifier {
   bool get isInCall => _isInCall;
   bool get isReconnecting => _isReconnecting;
   String? get roomId => _roomId;
+  
+  late final HmsCallManager _hmsManager;
 
-  CallProvider(this._logService, this._authService);
+  CallProvider(this._logService, this._authService) {
+    _hmsManager = HmsCallManager(onStateChange: notifyListeners);
+  }
+  
+  HmsCallManager get hmsManager => _hmsManager;
 
-  // TODO(100ms): Future<void> joinCall(String roomId, String token, String role)
   Future<void> joinCall(String roomId, String token, String role) async {
     AppLogger.write(
-        LogTag.rtc, 'joinCall: roomId=$roomId role=$role (STUB)');
+        LogTag.rtc, 'joinCall: roomId=$roomId role=$role (100ms)');
     _roomId = roomId;
     _callStartTime = DateTime.now();
     _isInCall = true;
     _reconnectAttempts = 0;
     notifyListeners();
+    await _hmsManager.joinWithRoomCode(Secrets.hmsRoomCodeMember, 'Member');
   }
 
   Future<void> leaveCall() async {
     AppLogger.write(LogTag.rtc, 'leaveCall called');
+    await _hmsManager.leaveCall();
     if (_callStartTime != null) {
       final endedAt = DateTime.now();
       final durationSec = endedAt.difference(_callStartTime!).inSeconds;
@@ -67,20 +72,20 @@ class CallProvider extends ChangeNotifier {
   void toggleMic() {
     _isMuted = !_isMuted;
     AppLogger.write(LogTag.rtc, 'toggleMic: isMuted=$_isMuted');
-    // TODO(100ms): hmsSDK.toggleMicMuteState()
+    _hmsManager.toggleMic(_isMuted);
     notifyListeners();
   }
 
   void toggleVideo() {
     _isVideoOff = !_isVideoOff;
     AppLogger.write(LogTag.rtc, 'toggleVideo: isVideoOff=$_isVideoOff');
-    // TODO(100ms): hmsSDK.toggleCameraMuteState()
+    _hmsManager.toggleCamera(_isVideoOff);
     notifyListeners();
   }
 
   void flipCamera() {
     AppLogger.write(LogTag.rtc, 'flipCamera called');
-    // TODO(100ms): hmsSDK.switchCamera()
+    _hmsManager.switchCamera();
   }
 
   // TODO(100ms): Reconnect logic
