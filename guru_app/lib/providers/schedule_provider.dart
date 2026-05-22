@@ -105,6 +105,47 @@ class ScheduleProvider extends ChangeNotifier {
     }
   }
 
+  /// Creates an instant call request and returns the request ID so the caller
+  /// can watch for trainer acceptance. Returns null on failure.
+  Future<String?> instantCall() async {
+    final user = _authService.currentUser;
+    if (user == null) {
+      _errorMessage = 'You must be logged in to start a call.';
+      notifyListeners();
+      return null;
+    }
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final request = CallRequestModel(
+        id: _uuid.v4(),
+        memberId: user.id,
+        trainerId: user.assignedTrainerId ?? 'trainer_001',
+        requestedAt: DateTime.now(),
+        scheduledFor: DateTime.now(),
+        note: 'Instant call request',
+        status: CallStatus.pending,
+        isInstant: true,
+      );
+      await _callService.createCallRequest(request);
+      AppLogger.write(LogTag.schedule, 'instantCall created: ${request.id}');
+      return request.id;
+    } catch (e) {
+      _errorMessage = 'Failed to start instant call. Please try again.';
+      AppLogger.write(LogTag.schedule, 'instantCall error: $e');
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Stream<CallRequestModel?> watchRequest(String requestId) =>
+      _callService.watchRequest(requestId);
+
   void clearError() {
     _errorMessage = null;
     notifyListeners();

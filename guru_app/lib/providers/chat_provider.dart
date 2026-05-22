@@ -24,11 +24,17 @@ class ChatProvider extends ChangeNotifier {
   ChatProvider(this._chatService, this._authService);
 
   void setActiveChat(String chatId) {
-    if (_activeChatId == chatId) return;
     _activeChatId = chatId;
     _messagesSub?.cancel();
     _messagesSub = _chatService.watchMessages(chatId).listen((msgs) {
-      _messages = msgs;
+      // Merge: keep any optimistic (sending) messages not yet in the stream
+      final streamIds = msgs.map((m) => m.id).toSet();
+      final optimistic = _messages
+          .where((m) =>
+              m.status == MessageStatus.sending && !streamIds.contains(m.id))
+          .toList();
+      _messages = [...msgs, ...optimistic];
+      _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
       notifyListeners();
     });
     AppLogger.write(LogTag.chat, 'setActiveChat: $chatId');
@@ -65,10 +71,6 @@ class ChatProvider extends ChangeNotifier {
           .toList();
       notifyListeners();
       AppLogger.write(LogTag.chat, 'sendMessage success: ${msg.id}');
-
-      // Simulate remote typing then auto-reply
-      _simulateReply(msg.chatId, user.assignedTrainerId ?? 'trainer_001',
-          user.id);
     } catch (e) {
       _errorMessage = 'Failed to send message.';
       AppLogger.write(LogTag.chat, 'sendMessage error: $e');

@@ -112,7 +112,9 @@ class HomeScreen extends StatelessWidget {
                       icon: Icons.notifications_outlined,
                       label: 'Requests',
                       badge: requestsProvider.pendingCount,
-                      badgeColor: kColorWarning,
+                      badgeColor: requestsProvider.hasInstantPending
+                          ? kColorError
+                          : kColorWarning,
                       onTap: () => context.push('/requests'),
                       delay: 200,
                     ),

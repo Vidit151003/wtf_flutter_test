@@ -25,6 +25,9 @@ abstract class CallService {
   /// Returns true if the given [slot] is already taken for [trainerId]
   /// (i.e. an approved request exists within ±30 minutes of [slot]).
   Future<bool> isSlotTaken(String trainerId, DateTime slot);
+
+  /// Watches a single request by [requestId] for real-time status changes.
+  Stream<CallRequestModel?> watchRequest(String requestId);
 }
 
 // ─── Mock implementation ──────────────────────────────────────────────────────
@@ -143,6 +146,30 @@ class MockCallService implements CallService {
       ctrl.add(requests);
     } catch (_) {
       ctrl.add([]);
+    }
+  }
+
+  // ─── watchRequest ─────────────────────────────────────────────────────────
+
+  @override
+  Stream<CallRequestModel?> watchRequest(String requestId) async* {
+    try {
+      final box = Hive.box<CallRequestModel>(_requestsBox);
+      yield box.get(requestId);
+      // Poll every second for mock (no real-time in Hive)
+      while (true) {
+        await Future.delayed(const Duration(seconds: 1));
+        final req = box.get(requestId);
+        yield req;
+        if (req != null &&
+            (req.status == CallStatus.approved ||
+                req.status == CallStatus.declined ||
+                req.status == CallStatus.cancelled)) {
+          break;
+        }
+      }
+    } catch (_) {
+      yield null;
     }
   }
 
@@ -276,6 +303,28 @@ class FirebaseCallService implements CallService {
     } catch (e) {
       AppLogger.write(LogTag.schedule, 'isSlotTaken(firebase) offline: $e');
       return false;
+    }
+  }
+
+  @override
+  Stream<CallRequestModel?> watchRequest(String requestId) async* {
+    yield _requestById(requestId);
+    try {
+      await for (final snapshot in _db
+          .collection('callRequests')
+          .doc(requestId)
+          .snapshots()) {
+        if (!snapshot.exists || snapshot.data() == null) {
+          yield null;
+        } else {
+          final req = CallRequestModel.fromJson(snapshot.data()!);
+          await _cacheRequest(req);
+          yield req;
+        }
+      }
+    } catch (e) {
+      AppLogger.write(LogTag.schedule, 'watchRequest(firebase) error: $e');
+      yield _requestById(requestId);
     }
   }
 

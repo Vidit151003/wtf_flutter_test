@@ -119,7 +119,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         title: const Text('Schedule a Call'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded),
-          onPressed: () => context.go('/home'),
+          onPressed: () => context.pop(),
         ),
       ),
       body: SafeArea(
@@ -138,7 +138,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             // Date chips
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 80,
+                height: 92,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(

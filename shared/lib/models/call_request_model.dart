@@ -31,6 +31,8 @@ class CallRequestModel extends Equatable {
   final String note;
   @HiveField(6)
   final CallStatus status;
+  @HiveField(7)
+  final bool isInstant;
 
   const CallRequestModel({
     required this.id,
@@ -40,6 +42,7 @@ class CallRequestModel extends Equatable {
     required this.scheduledFor,
     required this.note,
     required this.status,
+    this.isInstant = false,
   });
 
   factory CallRequestModel.fromJson(Map<String, dynamic> json) =>
@@ -52,6 +55,7 @@ class CallRequestModel extends Equatable {
         note: json['note'] as String,
         status: CallStatus.values
             .firstWhere((e) => e.name == json['status']),
+        isInstant: (json['isInstant'] as bool?) ?? false,
       );
 
   Map<String, dynamic> toJson() => {
@@ -62,6 +66,7 @@ class CallRequestModel extends Equatable {
         'scheduledFor': scheduledFor.toIso8601String(),
         'note': note,
         'status': status.name,
+        'isInstant': isInstant,
       };
 
   CallRequestModel copyWith({
@@ -72,6 +77,7 @@ class CallRequestModel extends Equatable {
     DateTime? scheduledFor,
     String? note,
     CallStatus? status,
+    bool? isInstant,
   }) =>
       CallRequestModel(
         id: id ?? this.id,
@@ -81,9 +87,10 @@ class CallRequestModel extends Equatable {
         scheduledFor: scheduledFor ?? this.scheduledFor,
         note: note ?? this.note,
         status: status ?? this.status,
+        isInstant: isInstant ?? this.isInstant,
       );
 
   @override
   List<Object?> get props =>
-      [id, memberId, trainerId, requestedAt, scheduledFor, note, status];
+      [id, memberId, trainerId, requestedAt, scheduledFor, note, status, isInstant];
 }

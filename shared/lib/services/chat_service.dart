@@ -23,6 +23,9 @@ abstract class ChatService {
 
   /// Updates the typing indicator for [userId] in [chatId].
   Future<void> setTyping(String chatId, String userId, bool isTyping);
+
+  /// Returns a stream that emits the latest message for [chatId], or null if none.
+  Stream<MessageModel?> watchLastMessage(String chatId);
 }
 
 // ─── Mock implementation ──────────────────────────────────────────────────────
@@ -141,6 +144,18 @@ class MockChatService implements ChatService {
     }
   }
 
+  // ─── watchLastMessage ──────────────────────────────────────────────────────
+
+  @override
+  Stream<MessageModel?> watchLastMessage(String chatId) {
+    final controller = _messageControllers.putIfAbsent(
+      chatId,
+      () => StreamController<List<MessageModel>>.broadcast(),
+    );
+    _emitMessages(chatId, controller);
+    return controller.stream.map((msgs) => msgs.isNotEmpty ? msgs.last : null);
+  }
+
   /// Dispose all stream controllers.
   Future<void> dispose() async {
     for (final c in _messageControllers.values) {
@@ -212,6 +227,35 @@ class FirebaseChatService implements ChatService {
       AppLogger.write(LogTag.chat, 'sendMessage(firebase) synced');
     } catch (e) {
       AppLogger.write(LogTag.chat, 'sendMessage(firebase) offline: $e');
+    }
+  }
+
+  // ─── watchLastMessage ──────────────────────────────────────────────────────
+
+  @override
+  Stream<MessageModel?> watchLastMessage(String chatId) async* {
+    final cached = _cachedMessages(chatId);
+    yield cached.isNotEmpty ? cached.last : null;
+    try {
+      final query = _db
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(1);
+      await for (final snapshot in query.snapshots()) {
+        if (snapshot.docs.isEmpty) {
+          yield null;
+        } else {
+          final msg = MessageModel.fromJson(snapshot.docs.first.data());
+          await _cacheMessage(msg);
+          yield msg;
+        }
+      }
+    } catch (e) {
+      AppLogger.write(LogTag.chat, 'watchLastMessage(firebase) error: $e');
+      final c = _cachedMessages(chatId);
+      yield c.isNotEmpty ? c.last : null;
     }
   }
 

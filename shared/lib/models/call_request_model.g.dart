@@ -24,13 +24,14 @@ class CallRequestModelAdapter extends TypeAdapter<CallRequestModel> {
       scheduledFor: fields[4] as DateTime,
       note: fields[5] as String,
       status: fields[6] as CallStatus,
+      isInstant: fields[7] == null ? false : fields[7] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, CallRequestModel obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +45,9 @@ class CallRequestModelAdapter extends TypeAdapter<CallRequestModel> {
       ..writeByte(5)
       ..write(obj.note)
       ..writeByte(6)
-      ..write(obj.status);
+      ..write(obj.status)
+      ..writeByte(7)
+      ..write(obj.isInstant);
   }
 
   @override

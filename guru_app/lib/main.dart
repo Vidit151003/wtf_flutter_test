@@ -36,7 +36,7 @@ Future<void> main() async {
   if (!Hive.isAdapterRegistered(12)) Hive.registerAdapter(CallStatusAdapter());
 
   // Open boxes
-  await Hive.openBox<UserModel>('prefs_box');
+  await Hive.openBox<dynamic>('prefs_box');
   await Hive.openBox<MessageModel>('messages_box');
   await Hive.openBox<CallRequestModel>('call_requests_box');
   await Hive.openBox<SessionLogModel>('session_logs_box');

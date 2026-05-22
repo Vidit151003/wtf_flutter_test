@@ -95,7 +95,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded),
-          onPressed: () => context.go('/chat'),
+          onPressed: () => context.pop(),
         ),
         title: Row(
           mainAxisSize: MainAxisSize.min,

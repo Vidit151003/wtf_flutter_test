@@ -36,6 +36,8 @@ class RequestsProvider extends ChangeNotifier {
 
   int get pendingCount => pendingRequests.length;
 
+  bool get hasInstantPending => pendingRequests.any((r) => r.isInstant);
+
   bool get isLoading => _isLoading;
   String? get error => _error;
 

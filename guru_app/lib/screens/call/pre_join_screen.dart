@@ -118,7 +118,7 @@ class _PreJoinScreenState extends State<PreJoinScreen> {
                 await callProvider.joinCall(
                     'dummy_room', 'dummy_token', roleStr);
                 if (context.mounted) {
-                  context.go('/call/in-call');
+                  context.push('/call/in-call');
                 }
               },
               child: const Text('Join Call', style: TextStyle(fontSize: 16)),

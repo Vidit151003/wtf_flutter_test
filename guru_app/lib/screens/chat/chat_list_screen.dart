@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:shared/shared.dart';
 
 class ChatListScreen extends StatelessWidget {
@@ -7,25 +8,19 @@ class ChatListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Messages'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded),
-          onPressed: () => context.go('/home'),
+          onPressed: () => context.pop(),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(
-            vertical: kSpacing8),
+        padding: const EdgeInsets.symmetric(vertical: kSpacing8),
         children: [
           _ChatThreadTile(
             name: 'Aarav',
-            lastMessage: "Let's do a session this week!",
-            timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
             chatId: 'chat_dk_aarav',
             isOnline: true,
           ),
@@ -34,8 +29,7 @@ class ChatListScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('New chat coming soon.')),
+            const SnackBar(content: Text('New chat coming soon.')),
           );
         },
         backgroundColor: kGuruPrimary,
@@ -48,15 +42,11 @@ class ChatListScreen extends StatelessWidget {
 
 class _ChatThreadTile extends StatelessWidget {
   final String name;
-  final String lastMessage;
-  final DateTime timestamp;
   final String chatId;
   final bool isOnline;
 
   const _ChatThreadTile({
     required this.name,
-    required this.lastMessage,
-    required this.timestamp,
     required this.chatId,
     required this.isOnline,
   });
@@ -65,9 +55,10 @@ class _ChatThreadTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
+    final chatService = context.read<ChatService>();
 
     return InkWell(
-      onTap: () => context.go('/chat/$chatId'),
+      onTap: () => context.push('/chat/$chatId'),
       child: Container(
         margin: const EdgeInsets.symmetric(
             horizontal: kSpacing16, vertical: kSpacing4),
@@ -75,8 +66,7 @@ class _ChatThreadTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border:
-              Border.all(color: kGuruNeutral300.withValues(alpha: 0.5)),
+          border: Border.all(color: kGuruNeutral300.withValues(alpha: 0.5)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -100,8 +90,7 @@ class _ChatThreadTile extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: kColorSuccess,
                         shape: BoxShape.circle,
-                        border: Border.all(
-                            color: Colors.white, width: 2),
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
                     ),
                   ),
@@ -109,37 +98,52 @@ class _ChatThreadTile extends StatelessWidget {
             ),
             const SizedBox(width: kSpacing12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+              child: StreamBuilder<MessageModel?>(
+                stream: chatService.watchLastMessage(chatId),
+                builder: (context, snapshot) {
+                  final lastMsg = snapshot.data;
+                  final preview = lastMsg?.text ??
+                      'Initiate a chat with your trainer';
+                  final timestamp = lastMsg?.createdAt;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        name,
-                        style: textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            name,
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (timestamp != null)
+                            Text(
+                              timestamp.toRelative(),
+                              style: textTheme.bodySmall?.copyWith(
+                                color: kGuruNeutral500,
+                              ),
+                            ),
+                        ],
                       ),
+                      const SizedBox(height: kSpacing4),
                       Text(
-                        timestamp.toRelative(),
+                        preview,
                         style: textTheme.bodySmall?.copyWith(
-                          color: kGuruNeutral500,
+                          color: lastMsg == null
+                              ? kGuruPrimary.withValues(alpha: 0.7)
+                              : kGuruNeutral500,
+                          fontStyle: lastMsg == null
+                              ? FontStyle.italic
+                              : FontStyle.normal,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                  ),
-                  const SizedBox(height: kSpacing4),
-                  Text(
-                    lastMessage,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: kGuruNeutral500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ],

@@ -58,13 +58,21 @@ class _GuruAppState extends State<GuruApp> {
       initialLocation: '/',
       redirect: (context, state) {
         final isOnboarded = _authProvider.isOnboarded;
+        final isLoggedIn = _authProvider.currentUser != null;
         final loc = state.uri.toString();
+
         if (!isOnboarded &&
             loc != '/onboarding' &&
             loc != '/profile-setup') {
           return '/onboarding';
         }
-        if (isOnboarded && loc == '/') {
+        
+        // If they bypass onboarding but their session was lost/cleared, force setup
+        if (isOnboarded && !isLoggedIn && loc != '/profile-setup') {
+          return '/profile-setup';
+        }
+
+        if (isOnboarded && isLoggedIn && loc == '/') {
           return '/home';
         }
         return null;
@@ -128,6 +136,7 @@ class _GuruAppState extends State<GuruApp> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>.value(value: _authProvider),
+        Provider<ChatService>.value(value: _chatService),
         ChangeNotifierProvider<ChatProvider>.value(value: _chatProvider),
         ChangeNotifierProvider<ScheduleProvider>.value(
             value: _scheduleProvider),
