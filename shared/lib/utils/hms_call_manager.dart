@@ -62,8 +62,12 @@ class HmsCallManager implements HMSUpdateListener, HMSActionResultListener {
   void onJoin({required HMSRoom room}) {
     AppLogger.write(LogTag.rtc, 'Joined room: ${room.id}');
     isJoined = true;
-    localPeer = room.localPeer;
     if (room.peers != null) {
+      try {
+        localPeer = room.peers!.firstWhere((p) => p.isLocal);
+      } catch (_) {
+        localPeer = null;
+      }
       remotePeers = room.peers!.where((p) => !p.isLocal).toList();
     }
     onStateChange();
@@ -89,9 +93,9 @@ class HmsCallManager implements HMSUpdateListener, HMSActionResultListener {
   }
 
   @override
-  void onError({required HMSError error}) {
+  void onHMSError({required HMSException error}) {
     AppLogger.write(LogTag.rtc, 'HMS Error: ${error.message}');
-    onErrorCallback?.call(error.message);
+    onErrorCallback?.call(error.message ?? 'Unknown HMS Error');
   }
 
   @override
@@ -120,7 +124,7 @@ class HmsCallManager implements HMSUpdateListener, HMSActionResultListener {
   void onChangeTrackStateRequest({required HMSTrackChangeRequest hmsTrackChangeRequest}) {}
 
   @override
-  void onRemovedFromRoom({required HMSException hmsException}) {
+  void onRemovedFromRoom({required HMSPeerRemovedFromPeer hmsPeerRemovedFromPeer}) {
     isJoined = false;
     onStateChange();
   }
